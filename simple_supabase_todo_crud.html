@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Supabase Todo CRUD</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen antialiased selection:bg-indigo-100 selection:text-indigo-900">
+
+  <!-- Main Container -->
+  <div class="max-w-2xl mx-auto px-4 py-8 sm:py-12">
+    
+    <!-- Header -->
+    <header class="flex flex-wrap items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2.5">
+          <span>Supabase Todo CRUD</span>
+          <span id="status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+            <span id="status-dot" class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span id="status-text">Connecting...</span>
+          </span>
+        </h1>
+        <p class="text-sm text-slate-500 mt-1">Create, Read, Update &amp; Delete tasks synced with PostgreSQL</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          id="refresh-btn"
+          title="Refresh tasks from Supabase"
+          class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs transition-colors cursor-pointer"
+        >
+          <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span class="hidden sm:inline">Refresh</span>
+        </button>
+
+        <button
+          type="button"
+          id="open-sql-btn"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs transition-colors cursor-pointer"
+        >
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0 2.21 3.582 4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          </svg>
+          <span>SQL Schema</span>
+        </button>
+
+        <button
+          type="button"
+          id="download-html-btn"
+          title="Download this standalone HTML file"
+          class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition-colors cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span class="hidden sm:inline">Download</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Error / Setup Notice Banner -->
+    <div id="alert-box" class="hidden mb-5 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="font-semibold">Database Table Not Found or Connection Notice</p>
+          <p id="alert-message" class="mt-1 text-rose-700 text-xs leading-relaxed"></p>
+          <button
+            type="button"
+            id="alert-open-sql"
+            class="mt-2.5 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
+          >
+            Copy SQL to Create Table
+          </button>
+        </div>
+        <button type="button" id="close-alert" class="text-rose-400 hover:text-rose-700 p-1">✕</button>
+      </div>
+    </div>
+
+    <!-- CREATE: Add Todo Form -->
+    <section class="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs mb-6">
+      <form id="create-form" class="flex flex-col sm:flex-row gap-2.5">
+        <input
+          type="text"
+          id="todo-input"
+          placeholder="What needs to be done?"
+          required
+          class="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
+        />
+        <select
+          id="category-input"
+          class="px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 cursor-pointer"
+        >
+          <option value="Work">Work</option>
+          <option value="Personal">Personal</option>
+          <option value="Study">Study</option>
+        </select>
+        <button
+          type="submit"
+          id="add-btn"
+          class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold shadow-xs transition-colors cursor-pointer"
+        >
+          + Add Task
+        </button>
+      </form>
+    </section>
+
+    <!-- Filter & Stats Bar -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4 px-1">
+      <div class="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl text-xs font-semibold">
+        <button type="button" data-filter="all" class="filter-btn px-3 py-1.5 rounded-lg bg-white text-slate-900 shadow-2xs cursor-pointer">All</button>
+        <button type="button" data-filter="active" class="filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer">Active</button>
+        <button type="button" data-filter="completed" class="filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer">Completed</button>
+      </div>
+
+      <!-- Real-time Search Input -->
+      <div class="relative flex-1 min-w-[160px] max-w-xs">
+        <input
+          type="search"
+          id="search-input"
+          placeholder="Search tasks..."
+          class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+        />
+        <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18a7.5 7.5 0 006.15-3.35z" />
+        </svg>
+      </div>
+
+      <div class="flex items-center gap-3 text-xs text-slate-500">
+        <span id="task-counter">0 tasks</span>
+        <button
+          type="button"
+          id="clear-completed-btn"
+          class="hidden text-rose-600 hover:text-rose-700 font-semibold hover:underline cursor-pointer"
+        >
+          Clear Completed
+        </button>
+      </div>
+    </div>
+
+    <!-- READ / UPDATE / DELETE: Todo List -->
+    <section class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+      <div id="loading-state" class="p-8 text-center text-sm text-slate-400">
+        Loading tasks from Supabase...
+      </div>
+
+      <div id="empty-state" class="hidden p-10 text-center">
+        <p class="text-sm font-semibold text-slate-600">No tasks found</p>
+        <p class="text-xs text-slate-400 mt-1">Add a new task above to test Supabase INSERT.</p>
+      </div>
+
+      <ul id="todo-list" class="divide-y divide-slate-100"></ul>
+    </section>
+  </div>
+
+  <!-- SQL Setup & Config Modal -->
+  <div id="sql-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+    <div class="w-full max-w-xl bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+      <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-bold">Supabase Table Setup (SQL)</h2>
+          <p class="text-xs text-slate-400">Connected to: <span class="font-mono text-emerald-400">vsxtkfvhvwuwsnujxjnh.supabase.co</span></p>
+        </div>
+        <button type="button" id="close-sql-modal" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">✕</button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-600">Run this once in your Supabase SQL Editor:</span>
+          <button
+            type="button"
+        <pre id="sql-code" class="p-4 rounded-xl bg-slate-950 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed">create table if not exists public.todos (
+  id uuid default gen_random_uuid() primary key,
+  title text not null,
+  category text default 'Work',
+  is_completed boolean default false,
+  created_at timestamptz default now()
+);
+
+-- Grant table privileges to Supabase API roles
+grant usage on schema public to anon, authenticated;
+grant all on table public.todos to anon, authenticated;
+
+-- Enable RLS & allow public CRUD access
+alter table public.todos enable row level security;
+
+drop policy if exists "Allow public access to todos" on public.todos;
+create policy "Allow public access to todos"
+on public.todos for all
+to anon, authenticated
+using (true)
+with check (true);</pre>
+
+        <div class="flex justify-end pt-2">
+          <button
+            type="button"
+            id="retry-connect-btn"
+            class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer"
+          >
+            Refresh &amp; Test Connection
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="hidden fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold shadow-lg"></div>
+
+  <script>
+    // =========================================================================
+    // 1. SUPABASE CONFIGURATION (YOUR PROJECT CREDENTIALS)
+    // =========================================================================
+    const SUPABASE_URL = 'https://vsxtkfvhvwuwsnujxjnh.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_7_Pvl54XWzvehKBOt9POlA_q7HxwPdD';
+    const TABLE_NAME = 'todos';
+
+    const headers = {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    };
+
+    // =========================================================================
+    // 2. APPLICATION STATE & DOM REFERENCES
+    // =========================================================================
+    let todos = [];
+    let currentFilter = 'all';
+    let searchQuery = '';
+    let editingId = null;
+
+    const todoListEl = document.getElementById('todo-list');
+    const loadingEl = document.getElementById('loading-state');
+    const emptyEl = document.getElementById('empty-state');
+    const taskCounterEl = document.getElementById('task-counter');
+    const clearCompletedBtn = document.getElementById('clear-completed-btn');
+    const alertBox = document.getElementById('alert-box');
+    const alertMsg = document.getElementById('alert-message');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const statusBadge = document.getElementById('status-badge');
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2500);
+    }
+
+    function setConnectionStatus(isLive, errorText = '') {
+      if (isLive) {
+        statusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200';
+        statusDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+        statusText.textContent = 'Supabase Connected';
+        alertBox.classList.add('hidden');
+      } else {
+        statusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200';
+        statusDot.className = 'w-2 h-2 rounded-full bg-rose-500';
+        statusText.textContent = 'Setup Required';
+        alertMsg.textContent = errorText;
+        alertBox.classList.remove('hidden');
+      }
+    }
+
+    // =========================================================================
+    // 3. SUPABASE CRUD OPERATIONS (REST API)
+    // =========================================================================
+
+    // READ: Fetch all rows from Supabase
+    async function fetchTodos() {
+      loadingEl.classList.remove('hidden');
+      todoListEl.innerHTML = '';
+      emptyEl.classList.add('hidden');
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE_NAME}?select=*&order=created_at.desc`, {
+          headers,
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || `HTTP ${res.status} — Please create the "todos" table using the SQL button.`);
+        }
+
+        todos = await res.json();
+        setConnectionStatus(true);
+        renderTodos();
+      } catch (err) {
+        setConnectionStatus(false, err.message);
+      } finally {
+        loadingEl.classList.add('hidden');
+      }
+    }
+
+    // CREATE: Insert a new todo row
+    async function createTodo(title, category) {
+      const addBtn = document.getElementById('add-btn');
+      addBtn.disabled = true;
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE_NAME}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ title, category, is_completed: false }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to add task');
+        }
+
+        const [inserted] = await res.json();
+        todos.unshift(inserted);
+        renderTodos();
+        showToast('Task added to Supabase');
+      } catch (err) {
+        setConnectionStatus(false, err.message);
+      } finally {
+        addBtn.disabled = false;
+      }
+    }
+
+    // UPDATE: Toggle completion or edit title
+    async function updateTodo(id, updates) {
+      const prevTodos = [...todos];
+      todos = todos.map((t) => (t.id === id ? { ...t, ...updates } : t));
+      renderTodos();
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE_NAME}?id=eq.${id}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify(updates),
+        });
+
+        if (!res.ok) throw new Error('Failed to update task');
+        showToast('Updated');
+      } catch (err) {
+        todos = prevTodos;
+        renderTodos();
+        showToast('Error updating task');
+      }
+    }
+
+    // DELETE: Remove a single todo row
+    async function deleteTodo(id) {
+      const prevTodos = [...todos];
+      todos = todos.filter((t) => t.id !== id);
+      renderTodos();
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE_NAME}?id=eq.${id}`, {
+          method: 'DELETE',
+          headers,
+        });
+
+        if (!res.ok) throw new Error('Failed to delete task');
+        showToast('Deleted');
+      } catch (err) {
+        todos = prevTodos;
+        renderTodos();
+        showToast('Error deleting task');
+      }
+    }
+
+    // BULK DELETE: Clear all completed rows
+    async function clearCompleted() {
+      const prevTodos = [...todos];
+      todos = todos.filter((t) => !t.is_completed);
+      renderTodos();
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE_NAME}?is_completed=eq.true`, {
+          method: 'DELETE',
+          headers,
+        });
+
+        if (!res.ok) throw new Error('Failed to clear completed tasks');
+        showToast('Cleared completed tasks');
+      } catch (err) {
+        todos = prevTodos;
+        renderTodos();
+        showToast('Error clearing completed tasks');
+      }
+    }
+
+    // =========================================================================
+    // 4. RENDER UI
+    // =========================================================================
+    function renderTodos() {
+      const filtered = todos.filter((t) => {
+        const matchesFilter =
+          currentFilter === 'active'
+            ? !t.is_completed
+            : currentFilter === 'completed'
+            ? t.is_completed
+            : true;
+        const matchesSearch =
+          !searchQuery ||
+          t.title.toLowerCase().includes(searchQuery) ||
+          (t.category || '').toLowerCase().includes(searchQuery);
+        return matchesFilter && matchesSearch;
+      });
+
+      const activeCount = todos.filter((t) => !t.is_completed).length;
+      const completedCount = todos.length - activeCount;
+
+      taskCounterEl.textContent = `${activeCount} active · ${todos.length} total`;
+      clearCompletedBtn.classList.toggle('hidden', completedCount === 0);
+
+      todoListEl.innerHTML = '';
+
+      if (filtered.length === 0) {
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+
+      const badgeColors = {
+        Work: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        Personal: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        Study: 'bg-amber-50 text-amber-700 border-amber-200',
+      };
+
+      filtered.forEach((todo) => {
+        const li = document.createElement('li');
+        li.className = 'p-4 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors';
+
+        if (editingId === todo.id) {
+          // Inline Edit Mode (supports Enter to save, Escape to cancel)
+          li.innerHTML = `
+            <div class="flex-1 flex items-center gap-2">
+              <input
+                type="text"
+                id="edit-input-${todo.id}"
+                data-edit-input="${todo.id}"
+                value="${escapeHtml(todo.title)}"
+                class="flex-1 px-3 py-1.5 rounded-lg border border-indigo-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+              <button type="button" data-save="${todo.id}" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold cursor-pointer">Save</button>
+              <button type="button" data-cancel="true" class="px-2.5 py-1.5 rounded-lg bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer">Cancel</button>
+            </div>
+          `;
+        } else {
+          // Standard Display Mode
+          const catClass = badgeColors[todo.category] || 'bg-slate-100 text-slate-700 border-slate-200';
+          li.innerHTML = `
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <input
+                type="checkbox"
+                ${todo.is_completed ? 'checked' : ''}
+                data-toggle="${todo.id}"
+                class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+              />
+              <span class="text-sm font-medium truncate ${todo.is_completed ? 'line-through text-slate-400' : 'text-slate-800'}">
+                ${escapeHtml(todo.title)}
+              </span>
+              <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold border shrink-0 ${catClass}">
+                ${escapeHtml(todo.category || 'Work')}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                data-edit="${todo.id}"
+                class="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                data-delete="${todo.id}"
+                class="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          `;
+        }
+
+        todoListEl.appendChild(li);
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // =========================================================================
+    // 5. EVENT LISTENERS
+    // =========================================================================
+    document.getElementById('create-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('todo-input');
+      const category = document.getElementById('category-input').value;
+      const title = input.value.trim();
+      if (!title) return;
+      input.value = '';
+      createTodo(title, category);
+    });
+
+    todoListEl.addEventListener('click', (e) => {
+      const toggleId = e.target.getAttribute('data-toggle');
+      const editId = e.target.getAttribute('data-edit');
+      const deleteId = e.target.getAttribute('data-delete');
+      const saveId = e.target.getAttribute('data-save');
+      const cancelEdit = e.target.getAttribute('data-cancel');
+
+      if (toggleId) {
+        const item = todos.find((t) => t.id === toggleId);
+        if (item) updateTodo(toggleId, { is_completed: !item.is_completed });
+      } else if (editId) {
+        editingId = editId;
+        renderTodos();
+        document.getElementById(`edit-input-${editId}`)?.focus();
+      } else if (saveId) {
+        const val = document.getElementById(`edit-input-${saveId}`)?.value.trim();
+        editingId = null;
+        if (val) updateTodo(saveId, { title: val });
+        else renderTodos();
+      } else if (cancelEdit) {
+        editingId = null;
+        renderTodos();
+      } else if (deleteId) {
+        deleteTodo(deleteId);
+      }
+    });
+
+    // Support Enter to save and Escape to cancel during inline editing
+    todoListEl.addEventListener('keydown', (e) => {
+      const editInputId = e.target.getAttribute('data-edit-input');
+      if (!editInputId) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = e.target.value.trim();
+        editingId = null;
+        if (val) updateTodo(editInputId, { title: val });
+        else renderTodos();
+      } else if (e.key === 'Escape') {
+        editingId = null;
+        renderTodos();
+      }
+    });
+
+    // Real-time search filter
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      searchQuery = e.target.value.trim().toLowerCase();
+      renderTodos();
+    });
+
+    // Manual refresh button
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+      fetchTodos();
+      showToast('Synced with Supabase');
+    });
+
+    // One-click download of the complete HTML file
+    document.getElementById('download-html-btn').addEventListener('click', () => {
+      // Clone the document and reset dynamic containers so the exported file is clean
+      const clone = document.documentElement.cloneNode(true);
+      const clonedList = clone.querySelector('#todo-list');
+      if (clonedList) clonedList.innerHTML = '';
+      const clonedLoading = clone.querySelector('#loading-state');
+      if (clonedLoading) clonedLoading.classList.remove('hidden');
+      const clonedEmpty = clone.querySelector('#empty-state');
+      if (clonedEmpty) clonedEmpty.classList.add('hidden');
+      const clonedToast = clone.querySelector('#toast');
+      if (clonedToast) clonedToast.classList.add('hidden');
+
+      const fullHtml = '<!DOCTYPE html>\n' + clone.outerHTML;
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'supabase-todo-crud.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Downloaded supabase-todo-crud.html');
+    });
+
+    document.querySelectorAll('.filter-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        currentFilter = btn.getAttribute('data-filter');
+        document.querySelectorAll('.filter-btn').forEach((b) => {
+          b.className = 'filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer';
+        });
+        btn.className = 'filter-btn px-3 py-1.5 rounded-lg bg-white text-slate-900 shadow-2xs cursor-pointer';
+        renderTodos();
+      });
+    });
+
+    clearCompletedBtn.addEventListener('click', clearCompleted);
+
+    // SQL Modal Controls
+    const sqlModal = document.getElementById('sql-modal');
+    document.getElementById('open-sql-btn').addEventListener('click', () => sqlModal.classList.remove('hidden'));
+    document.getElementById('alert-open-sql').addEventListener('click', () => sqlModal.classList.remove('hidden'));
+    document.getElementById('close-sql-modal').addEventListener('click', () => sqlModal.classList.add('hidden'));
+    document.getElementById('close-alert').addEventListener('click', () => alertBox.classList.add('hidden'));
+
+    document.getElementById('copy-sql-btn').addEventListener('click', () => {
+      const sqlText = document.getElementById('sql-code').textContent;
+      const textarea = document.createElement('textarea');
+      textarea.value = sqlText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast('SQL copied to clipboard!');
+    });
+
+    document.getElementById('retry-connect-btn').addEventListener('click', () => {
+      sqlModal.classList.add('hidden');
+      fetchTodos();
+    });
+
+    // Initial load
+    fetchTodos();
+  </script>
+</body>
+</html>
